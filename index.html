@@ -1,0 +1,1064 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SafeTrain – Vizimed</title>
+
+<!-- Firebase SDK v10 (modular via CDN compat) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
+<style>
+:root {
+  --brand:#0A7C4E; --brand-dark:#065C38; --brand-light:#E6F5EF;
+  --accent:#F0A500; --danger:#D93025;
+  --text:#1A1A1A; --muted:#6B7280; --border:#E5E7EB;
+  --surface:#F9FAFB; --white:#FFFFFF;
+  --radius:10px;
+  --shadow:0 2px 12px rgba(0,0,0,.08);
+  --shadow-lg:0 8px 32px rgba(0,0,0,.13);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--surface);color:var(--text);min-height:100vh}
+
+/* ── LOADER ── */
+#global-loader{position:fixed;inset:0;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;gap:14px}
+#global-loader .spinner{width:40px;height:40px;border:4px solid var(--border);border-top-color:var(--brand);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#global-loader p{font-size:.9rem;color:var(--muted)}
+
+
+
+/* ── AUTH ── */
+#screen-login{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#fff;padding:24px}
+.login-logo{width:170px;margin-bottom:8px}
+.login-brand{font-size:2rem;font-weight:800;letter-spacing:-1px;color:var(--brand);margin-bottom:4px}
+.login-sub{font-size:.85rem;color:var(--muted);margin-bottom:36px}
+.login-box{background:#fff;border:1px solid var(--border);border-radius:14px;padding:36px 32px;width:100%;max-width:380px;box-shadow:var(--shadow-lg)}
+.login-box h2{font-size:1.05rem;font-weight:700;margin-bottom:22px}
+.field{margin-bottom:16px}
+.field label{display:block;font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px}
+.field input,.field select,.field textarea{width:100%;padding:10px 13px;border:1.5px solid var(--border);border-radius:var(--radius);font-size:.93rem;outline:none;transition:border .18s;background:#fff;font-family:inherit}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--brand)}
+.field textarea{resize:vertical}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:10px 20px;border:none;border-radius:var(--radius);font-size:.9rem;font-weight:600;cursor:pointer;transition:background .15s,transform .1s}
+.btn:active{transform:scale(.98)}
+.btn-primary{background:var(--brand);color:#fff;width:100%}
+.btn-primary:hover{background:var(--brand-dark)}
+.btn-secondary{background:var(--surface);color:var(--text);border:1.5px solid var(--border)}
+.btn-secondary:hover{background:var(--border)}
+.btn-danger{background:var(--danger);color:#fff}
+.btn-accent{background:var(--accent);color:#fff}
+.btn-sm{padding:6px 13px;font-size:.8rem;width:auto}
+.login-error{color:var(--danger);font-size:.84rem;margin-top:10px;min-height:18px}
+
+/* ── SHELL ── */
+#app{display:none;flex-direction:column;min-height:100vh}
+.topbar{background:#fff;border-bottom:1px solid var(--border);padding:0 22px;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.topbar-left{display:flex;align-items:center;gap:12px}
+.topbar-logo{height:30px}
+.topbar-title{font-size:1.05rem;font-weight:800;color:var(--brand);letter-spacing:-.5px}
+.topbar-right{display:flex;align-items:center;gap:10px}
+.user-chip{font-size:.8rem;background:var(--brand-light);color:var(--brand-dark);padding:4px 11px;border-radius:20px;font-weight:700}
+.main-content{flex:1;padding:26px 22px;max-width:1100px;margin:0 auto;width:100%}
+
+/* ── NAV TABS ── */
+.nav-tabs{display:flex;gap:3px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:3px;margin-bottom:24px;width:fit-content;flex-wrap:wrap}
+.nav-tab{padding:7px 18px;border-radius:7px;font-size:.85rem;font-weight:600;cursor:pointer;color:var(--muted);transition:all .15s;border:none;background:none}
+.nav-tab.active{background:#fff;color:var(--brand);box-shadow:var(--shadow)}
+
+/* ── CARDS / TABLES ── */
+.card{background:#fff;border:1px solid var(--border);border-radius:14px;padding:22px;margin-bottom:18px}
+.card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px}
+.card-title{font-size:.97rem;font-weight:700}
+table{width:100%;border-collapse:collapse;font-size:.88rem}
+th{text-align:left;padding:9px 11px;font-size:.73rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);border-bottom:2px solid var(--border)}
+td{padding:10px 11px;border-bottom:1px solid var(--border);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:var(--surface)}
+.badge{display:inline-block;padding:3px 9px;border-radius:20px;font-size:.72rem;font-weight:700}
+.badge-green{background:#D1FAE5;color:#065F46}
+.badge-red{background:#FEE2E2;color:#991B1B}
+.badge-yellow{background:#FEF3C7;color:#92400E}
+.badge-gray{background:#F3F4F6;color:#6B7280}
+
+/* ── MODAL ── */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:500;align-items:center;justify-content:center;padding:14px}
+.modal-overlay.open{display:flex}
+.modal{background:#fff;border-radius:16px;padding:28px;width:100%;max-width:560px;max-height:90vh;overflow-y:auto;box-shadow:var(--shadow-lg);position:relative}
+.modal h2{font-size:1.1rem;font-weight:800;margin-bottom:20px}
+.modal-close{position:absolute;top:16px;right:18px;background:none;border:none;font-size:1.25rem;cursor:pointer;color:var(--muted)}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:13px}
+.form-row .field{margin-bottom:0}
+.modal-actions{margin-top:20px;display:flex;gap:9px;justify-content:flex-end}
+
+/* ── STATS ── */
+.stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:22px}
+.stat-card{background:#fff;border:1px solid var(--border);border-radius:12px;padding:16px 18px}
+.stat-num{font-size:1.75rem;font-weight:800;color:var(--brand)}
+.stat-label{font-size:.78rem;color:var(--muted);margin-top:2px}
+
+/* ── PARTICIPANT AREA ── */
+.course-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:16px}
+.course-card{background:#fff;border:1px solid var(--border);border-radius:14px;padding:22px;cursor:pointer;transition:box-shadow .18s,transform .15s;text-align:center}
+.course-card:hover{box-shadow:var(--shadow-lg);transform:translateY(-2px)}
+.course-icon{width:52px;height:52px;background:var(--brand-light);border-radius:13px;margin:0 auto 12px;display:flex;align-items:center;justify-content:center}
+.course-card h3{font-size:.95rem;font-weight:700;margin-bottom:5px}
+.course-card p{font-size:.8rem;color:var(--muted);line-height:1.5}
+.course-deadline{font-size:.76rem;color:var(--accent);font-weight:700;margin-top:7px}
+
+/* ── VIDEO PLAYER ── */
+#screen-player{display:none}
+.player-header{background:#fff;border-bottom:1px solid var(--border);padding:12px 22px;display:flex;align-items:center;gap:14px}
+.player-body{max-width:880px;margin:24px auto;padding:0 22px}
+.video-wrapper{position:relative;padding-bottom:56.25%;height:0;border-radius:12px;overflow:hidden;box-shadow:var(--shadow-lg);background:#000}
+.video-wrapper iframe{position:absolute;top:0;left:0;width:100%;height:100%;border:0}
+.video-block-layer{position:absolute;inset:0;z-index:10;background:transparent;pointer-events:all;cursor:default}
+.video-wrapper *{-webkit-user-select:none;user-select:none}
+.player-meta{background:#fff;border:1px solid var(--border);border-radius:12px;padding:20px;margin-top:18px}
+.player-meta h2{font-size:1.05rem;font-weight:800;margin-bottom:7px}
+.player-meta p{font-size:.88rem;color:var(--muted);line-height:1.7;white-space:pre-wrap}
+.player-actions{display:flex;gap:11px;margin-top:16px;flex-wrap:wrap}
+
+/* ── PILLS ── */
+.pill-row{display:flex;flex-wrap:wrap;gap:7px;margin-top:7px}
+.pill{background:var(--brand-light);color:var(--brand-dark);padding:4px 11px;border-radius:20px;font-size:.78rem;font-weight:600;display:flex;align-items:center;gap:5px}
+.pill button{background:none;border:none;cursor:pointer;color:var(--brand-dark);font-size:.95rem;line-height:1;padding:0}
+
+/* ── DYNAMIC FIELD ROWS ── */
+.dyn-row{display:flex;gap:8px;margin-bottom:8px;align-items:center}
+.dyn-row input{flex:1}
+.dyn-row .btn-remove{background:var(--surface);border:1.5px solid var(--border);color:var(--danger);border-radius:var(--radius);width:38px;height:38px;flex:none;cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center}
+.dyn-row .btn-remove:hover{background:#FEE2E2}
+
+/* ── COURSE INFO BLOCK (participant view) ── */
+.info-block{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-top:14px}
+.info-block h4{font-size:.8rem;font-weight:800;color:var(--brand-dark);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+.info-block .info-row{font-size:.86rem;color:var(--text);margin-bottom:3px}
+.info-block .info-row strong{font-weight:700}
+.video-tabs{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+.video-tab{padding:6px 14px;border-radius:8px;font-size:.82rem;font-weight:600;cursor:pointer;border:1.5px solid var(--border);background:#fff;color:var(--muted)}
+.video-tab.active{background:var(--brand);color:#fff;border-color:var(--brand)}
+.eval-links{display:flex;flex-direction:column;gap:8px}
+
+
+/* ── SAVING INDICATOR ── */
+.saving{position:fixed;bottom:20px;right:20px;background:var(--brand);color:#fff;padding:9px 18px;border-radius:20px;font-size:.82rem;font-weight:700;box-shadow:var(--shadow-lg);z-index:999;display:none}
+
+.section-hidden{display:none!important}
+.empty-row td{text-align:center;padding:28px;color:var(--muted)}
+
+@media(max-width:600px){
+  .main-content{padding:14px 10px}
+  .form-row{grid-template-columns:1fr}
+  .topbar{padding:0 12px}
+  .modal{padding:20px 14px}
+  .nav-tabs{width:100%}
+}
+</style>
+</head>
+<body>
+
+<!-- ── LOADER ── -->
+<div id="global-loader">
+  <div class="spinner"></div>
+  <p>Conectando ao banco de dados…</p>
+</div>
+
+
+
+<!-- ── LOGIN ── -->
+<div id="screen-login" style="display:none">
+  <img class="login-logo" src="LOGO_01.png" alt="Vizimed" onerror="this.style.display='none'">
+  <div class="login-brand">SafeTrain</div>
+  <div class="login-sub">Treinamentos de Segurança do Trabalho</div>
+  <div class="login-box">
+    <h2>Acesse sua conta</h2>
+    <div class="field"><label>CPF</label>
+      <input type="text" id="login-cpf" placeholder="000.000.000-00" maxlength="14" autocomplete="username">
+    </div>
+    <div class="field"><label>Senha</label>
+      <input type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <button class="btn btn-primary" onclick="doLogin()">Entrar</button>
+    <div class="login-error" id="login-error"></div>
+  </div>
+</div>
+
+<!-- ── APP ── -->
+<div id="app">
+  <div class="topbar">
+    <div class="topbar-left">
+      <img class="topbar-logo" src="LOGO_01.png" alt="V" onerror="this.style.display='none'" style="filter:invert(1) sepia(1) saturate(3) hue-rotate(100deg)">
+      <span class="topbar-title">SafeTrain</span>
+    </div>
+    <div class="topbar-right">
+      <span class="user-chip" id="topbar-user"></span>
+      <button class="btn btn-secondary btn-sm" onclick="doLogout()">Sair</button>
+    </div>
+  </div>
+
+  <!-- MANAGER -->
+  <div id="area-manager" class="section-hidden">
+    <div class="main-content">
+      <div class="nav-tabs">
+        <button class="nav-tab active" onclick="mgTab(this,'tab-dash')">Dashboard</button>
+        <button class="nav-tab" onclick="mgTab(this,'tab-part')">Participantes</button>
+        <button class="nav-tab" onclick="mgTab(this,'tab-cursos')">Cursos</button>
+        <button class="nav-tab" onclick="mgTab(this,'tab-lib')">Liberações</button>
+      </div>
+
+      <!-- DASHBOARD -->
+      <div id="tab-dash">
+        <div class="stats-row" id="stats-row"></div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">Liberações recentes</span></div>
+          <table><thead><tr><th>Participante</th><th>Curso</th><th>Prazo</th><th>Status</th></tr></thead>
+          <tbody id="dash-tbody"></tbody></table>
+        </div>
+      </div>
+
+      <!-- PARTICIPANTES -->
+      <div id="tab-part" class="section-hidden">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Participantes cadastrados</span>
+            <button class="btn btn-primary btn-sm" onclick="openModal('modal-part');resetPartForm()">+ Novo participante</button>
+          </div>
+          <table><thead><tr><th>Nome</th><th>Empresa</th><th>CPF</th><th>Cargo</th><th>Ações</th></tr></thead>
+          <tbody id="part-tbody"></tbody></table>
+        </div>
+      </div>
+
+      <!-- CURSOS -->
+      <div id="tab-cursos" class="section-hidden">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Cursos cadastrados</span>
+            <button class="btn btn-primary btn-sm" onclick="openModal('modal-curso');resetCursoForm()">+ Novo curso</button>
+          </div>
+          <table><thead><tr><th>Título</th><th>Descrição</th><th>Avaliação</th><th>Ações</th></tr></thead>
+          <tbody id="curso-tbody"></tbody></table>
+        </div>
+      </div>
+
+      <!-- LIBERAÇÕES -->
+      <div id="tab-lib" class="section-hidden">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Acessos liberados</span>
+            <button class="btn btn-primary btn-sm" onclick="openAccessModal()">+ Nova liberação</button>
+          </div>
+          <table><thead><tr><th>Participante</th><th>Curso</th><th>Prazo</th><th>Status</th><th>Ações</th></tr></thead>
+          <tbody id="lib-tbody"></tbody></table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PARTICIPANT -->
+  <div id="area-part" class="section-hidden">
+    <div id="screen-courses">
+      <div class="main-content">
+        <h2 style="margin-bottom:5px;font-size:1.25rem">Meus Treinamentos</h2>
+        <p style="color:var(--muted);font-size:.86rem;margin-bottom:22px">Clique em um curso para assistir e responder a avaliação.</p>
+        <div class="course-grid" id="part-courses"></div>
+      </div>
+    </div>
+    <div id="screen-player">
+      <div class="player-header">
+        <button class="btn btn-secondary btn-sm" onclick="closePlayer()">← Voltar</button>
+        <span id="player-heading" style="font-weight:700;font-size:.97rem"></span>
+      </div>
+      <div class="player-body">
+        <div class="video-tabs" id="video-tabs"></div>
+        <div class="video-wrapper" id="video-wrapper" oncontextmenu="return false">
+          <iframe id="yt-frame" allowfullscreen allow="autoplay; fullscreen; picture-in-picture"></iframe>
+          <div class="video-block-layer" oncontextmenu="return false" ondragstart="return false"></div>
+        </div>
+        <div class="player-meta">
+          <h2 id="player-title"></h2>
+          <p id="player-ementa"></p>
+          <div class="player-actions eval-links" id="eval-links"></div>
+          <div class="info-block" id="info-rt" style="display:none">
+            <h4>Responsável Técnico</h4>
+            <div class="info-row"><strong id="rt-nome"></strong></div>
+            <div class="info-row" id="rt-cargo"></div>
+            <div class="info-row" id="rt-registro"></div>
+          </div>
+          <div class="info-block" id="info-instrutor" style="display:none">
+            <h4>Instrutor</h4>
+            <div class="info-row"><strong id="in-nome"></strong></div>
+            <div class="info-row" id="in-cargo"></div>
+            <div class="info-row" id="in-registro"></div>
+            <div class="info-row" id="in-proficiencia"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SAVING -->
+<div class="saving" id="saving-indicator">Salvando…</div>
+
+<!-- ══════════════ MODAIS ══════════════ -->
+
+<!-- Participante -->
+<div class="modal-overlay" id="modal-part">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('modal-part')">✕</button>
+    <h2 id="mp-title">Novo Participante</h2>
+    <input type="hidden" id="mp-id">
+    <div class="field"><label>Nome completo</label><input type="text" id="mp-name" placeholder="Nome completo do participante"></div>
+    <div class="form-row">
+      <div class="field"><label>Empresa</label><input type="text" id="mp-empresa" placeholder="Nome da empresa"></div>
+      <div class="field"><label>CNPJ</label><input type="text" id="mp-cnpj" placeholder="00.000.000/0000-00" maxlength="18"></div>
+    </div>
+    <div class="form-row">
+      <div class="field"><label>CPF (login)</label><input type="text" id="mp-cpf" placeholder="000.000.000-00" maxlength="14"></div>
+      <div class="field"><label>Cargo / Função</label><input type="text" id="mp-role" placeholder="Ex: Técnico de Segurança"></div>
+    </div>
+    <div class="field"><label>Senha</label><input type="password" id="mp-pass" placeholder="Senha de acesso"></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-part')">Cancelar</button>
+      <button class="btn btn-primary btn-sm" onclick="saveParticipant()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Curso -->
+<div class="modal-overlay" id="modal-curso">
+  <div class="modal" style="max-width:680px">
+    <button class="modal-close" onclick="closeModal('modal-curso')">✕</button>
+    <h2 id="mc-title">Novo Curso</h2>
+    <input type="hidden" id="mc-id">
+    <div class="field"><label>Título do curso</label><input type="text" id="mc-name" placeholder="Ex: NR-35 – Trabalho em Altura"></div>
+    <div class="field"><label>Descrição curta</label><textarea id="mc-desc" rows="2" placeholder="Breve descrição do curso…"></textarea></div>
+    <div class="field"><label>Ementa / Conteúdo programático</label><textarea id="mc-ementa" rows="4" placeholder="Liste os tópicos abordados…"></textarea></div>
+
+    <div class="field">
+      <label>Vídeos do curso (YouTube)</label>
+      <div id="mc-videos-list"></div>
+      <button class="btn btn-secondary btn-sm" type="button" onclick="addVideoField()">+ Adicionar vídeo</button>
+    </div>
+
+    <div class="field">
+      <label>Avaliações (Google Forms)</label>
+      <div id="mc-forms-list"></div>
+      <button class="btn btn-secondary btn-sm" type="button" onclick="addFormField()">+ Adicionar avaliação</button>
+    </div>
+
+    <hr style="border:none;border-top:1px solid var(--border);margin:18px 0">
+    <h3 style="font-size:.92rem;font-weight:800;margin-bottom:12px;color:var(--brand)">Responsável Técnico</h3>
+    <div class="form-row">
+      <div class="field"><label>Nome</label><input type="text" id="mc-rt-nome" placeholder="Nome completo"></div>
+      <div class="field"><label>Cargo</label><input type="text" id="mc-rt-cargo" placeholder="Ex: Engenheiro de Segurança"></div>
+    </div>
+    <div class="field" style="margin-top:13px"><label>Registro MTE/CREA</label><input type="text" id="mc-rt-registro" placeholder="Número do registro"></div>
+
+    <hr style="border:none;border-top:1px solid var(--border);margin:18px 0">
+    <h3 style="font-size:.92rem;font-weight:800;margin-bottom:12px;color:var(--brand)">Instrutor</h3>
+    <div class="form-row">
+      <div class="field"><label>Nome</label><input type="text" id="mc-in-nome" placeholder="Nome completo"></div>
+      <div class="field"><label>Cargo</label><input type="text" id="mc-in-cargo" placeholder="Ex: Técnico de Segurança"></div>
+    </div>
+    <div class="field" style="margin-top:13px"><label>Registro MTE/CREA</label><input type="text" id="mc-in-registro" placeholder="Número do registro"></div>
+    <div class="field" style="margin-top:13px"><label>Proficiência do instrutor</label><textarea id="mc-in-proficiencia" rows="2" placeholder="Descreva a qualificação e experiência do instrutor…"></textarea></div>
+
+    <div class="modal-actions">
+      <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-curso')">Cancelar</button>
+      <button class="btn btn-primary btn-sm" onclick="saveCurso()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Liberação -->
+<div class="modal-overlay" id="modal-lib">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('modal-lib')">✕</button>
+    <h2>Liberar Treinamento</h2>
+    <div class="field">
+      <label>Participante(s)</label>
+      <select id="la-part"><option value="">Selecione…</option></select>
+      <div style="margin-top:7px">
+        <button class="btn btn-secondary btn-sm" type="button" onclick="addPill()">+ Adicionar</button>
+      </div>
+      <div class="pill-row" id="la-pills"></div>
+    </div>
+    <div class="field"><label>Curso</label><select id="la-curso" onchange="onAccessCourseChange()"><option value="">Selecione…</option></select></div>
+    <div class="form-row">
+      <div class="field"><label>Responsável Técnico</label><select id="la-rt"><option value="">Selecione…</option></select></div>
+      <div class="field"><label>Instrutor</label><select id="la-instrutor"><option value="">Selecione…</option></select></div>
+    </div>
+    <div class="field"><label>Prazo de conclusão</label><input type="date" id="la-deadline"></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-lib')">Cancelar</button>
+      <button class="btn btn-primary btn-sm" onclick="saveAccess()">Liberar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ SCRIPTS ══════════════ -->
+<script>
+// ─────────────────────────────────────────
+//  ★ CONFIGURAÇÃO FIREBASE ★
+//  Cole aqui as credenciais do seu projeto.
+//  Obtidas em: Firebase Console → Configurações → Seus apps → SDK
+// ─────────────────────────────────────────
+const FIREBASE_CONFIG = {
+  apiKey:      "AIzaSyBxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  authDomain:  "safetrain-vizimed.firebaseapp.com",
+  projectId:   "safetrain-vizimed",
+  appId:       "1:123456789012:web:abcdef1234567890"
+};
+};
+// ─────────────────────────────────────────
+
+function initFirebase() {
+  try {
+    if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+    window.db = firebase.firestore();
+    hideLoader();
+    document.getElementById('screen-login').style.display = 'flex';
+    ensureManagerExists();
+  } catch(e) {
+    document.getElementById('global-loader').querySelector('p').textContent =
+      '❌ Erro ao conectar. Verifique as credenciais do Firebase no código.';
+    console.error('Firebase init error:', e);
+  }
+}
+
+function hideLoader() { document.getElementById('global-loader').style.display = 'none'; }
+function showLoader(msg) {
+  const el = document.getElementById('global-loader');
+  el.style.display = 'flex';
+  el.querySelector('p').textContent = msg || 'Conectando…';
+}
+
+// Init on load
+window.addEventListener('DOMContentLoaded', () => initFirebase());
+
+// ─────────────────────────────────────────
+//  HELPERS
+// ─────────────────────────────────────────
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+function showSaving() {
+  const el = document.getElementById('saving-indicator');
+  el.style.display = 'block';
+  clearTimeout(window._savingTimer);
+  window._savingTimer = setTimeout(() => el.style.display = 'none', 1800);
+}
+function openModal(id)  { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+document.querySelectorAll('.modal-overlay').forEach(m =>
+  m.addEventListener('click', e => { if (e.target === m) m.classList.remove('open'); })
+);
+
+// ─────────────────────────────────────────
+//  FIRESTORE COLLECTIONS
+//  users/{id}   → { name, cpf, role, pass, type:'manager'|'participant' }
+//  courses/{id} → { name, desc, ementa, yt, form }
+//  accesses/{id}→ { participantId, courseId, deadline }
+// ─────────────────────────────────────────
+const COL = { users:'users', courses:'courses', accesses:'accesses' };
+let CACHE = { users:[], courses:[], accesses:[] };
+
+async function loadAll() {
+  const [u, c, a] = await Promise.all([
+    db.collection(COL.users).get(),
+    db.collection(COL.courses).get(),
+    db.collection(COL.accesses).get(),
+  ]);
+  CACHE.users    = u.docs.map(d => ({ id: d.id, ...d.data() }));
+  CACHE.courses  = c.docs.map(d => ({ id: d.id, ...d.data() }));
+  CACHE.accesses = a.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+async function ensureManagerExists() {
+  const snap = await db.collection(COL.users).where('type','==','manager').limit(1).get();
+  if (snap.empty) {
+    await db.collection(COL.users).doc('manager-default').set({
+      name: 'Gestor Vizimed', cpf: '000.000.000-00',
+      role: 'Administrador', pass: 'gestor123', type: 'manager'
+    });
+  }
+}
+
+// ─────────────────────────────────────────
+//  AUTH
+// ─────────────────────────────────────────
+let currentUser = null;
+
+async function doLogin() {
+  const cpf  = document.getElementById('login-cpf').value.trim();
+  const pass = document.getElementById('login-pass').value;
+  const err  = document.getElementById('login-error');
+  err.textContent = '';
+  if (!cpf || !pass) { err.textContent = 'Preencha CPF e senha.'; return; }
+
+  showLoader('Verificando credenciais…');
+  try {
+    const snap = await db.collection(COL.users)
+      .where('cpf','==',cpf).where('pass','==',pass).limit(1).get();
+    if (snap.empty) { hideLoader(); err.textContent = 'CPF ou senha incorretos.'; return; }
+    currentUser = { id: snap.docs[0].id, ...snap.docs[0].data() };
+    await loadAll();
+    hideLoader();
+    document.getElementById('screen-login').style.display = 'none';
+    document.getElementById('app').style.display = 'flex';
+    document.getElementById('topbar-user').textContent = currentUser.name.split(' ')[0];
+    if (currentUser.type === 'manager') {
+      document.getElementById('area-manager').classList.remove('section-hidden');
+      renderDash(); renderPart(); renderCursos(); renderLib();
+    } else {
+      document.getElementById('area-part').classList.remove('section-hidden');
+      renderPartCourses();
+    }
+  } catch(e) {
+    hideLoader();
+    err.textContent = 'Erro de conexão. Tente novamente.';
+    console.error(e);
+  }
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && document.getElementById('screen-login').style.display !== 'none') doLogin();
+});
+
+function doLogout() {
+  currentUser = null;
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('screen-login').style.display = 'flex';
+  document.getElementById('area-manager').classList.add('section-hidden');
+  document.getElementById('area-part').classList.add('section-hidden');
+  document.getElementById('login-cpf').value = '';
+  document.getElementById('login-pass').value = '';
+  document.getElementById('login-error').textContent = '';
+  closePlayer();
+  CACHE = { users:[], courses:[], accesses:[] };
+}
+
+// ─────────────────────────────────────────
+//  MANAGER TABS
+// ─────────────────────────────────────────
+function mgTab(btn, id) {
+  document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  ['tab-dash','tab-part','tab-cursos','tab-lib'].forEach(t =>
+    document.getElementById(t).classList.toggle('section-hidden', t !== id));
+}
+
+// ─────────────────────────────────────────
+//  DASHBOARD
+// ─────────────────────────────────────────
+function renderDash() {
+  const now = new Date(); now.setHours(0,0,0,0);
+  const parts   = CACHE.users.filter(u => u.type !== 'manager');
+  const active  = CACHE.accesses.filter(a => !a.deadline || new Date(a.deadline) >= now).length;
+  document.getElementById('stats-row').innerHTML = `
+    <div class="stat-card"><div class="stat-num">${parts.length}</div><div class="stat-label">Participantes</div></div>
+    <div class="stat-card"><div class="stat-num">${CACHE.courses.length}</div><div class="stat-label">Cursos</div></div>
+    <div class="stat-card"><div class="stat-num">${CACHE.accesses.length}</div><div class="stat-label">Total de liberações</div></div>
+    <div class="stat-card"><div class="stat-num">${active}</div><div class="stat-label">Acessos ativos</div></div>`;
+
+  const rows = CACHE.accesses.slice(-20).reverse().map(a => {
+    const p = CACHE.users.find(u => u.id === a.participantId);
+    const c = CACHE.courses.find(c => c.id === a.courseId);
+    const exp = a.deadline && new Date(a.deadline) < now;
+    return `<tr><td>${p?.name||'–'}</td><td>${c?.name||'–'}</td>
+      <td>${a.deadline||'Sem prazo'}</td>
+      <td><span class="badge ${exp?'badge-red':'badge-green'}">${exp?'Expirado':'Ativo'}</span></td></tr>`;
+  }).join('');
+  document.getElementById('dash-tbody').innerHTML = rows ||
+    '<tr class="empty-row"><td colspan="4">Nenhuma liberação cadastrada.</td></tr>';
+}
+
+// ─────────────────────────────────────────
+//  PARTICIPANTS
+// ─────────────────────────────────────────
+function renderPart() {
+  const parts = CACHE.users.filter(u => u.type !== 'manager');
+  document.getElementById('part-tbody').innerHTML = parts.length
+    ? parts.map(u => `<tr>
+        <td>${u.name}</td><td>${u.empresa||'–'}</td><td>${u.cpf}</td><td>${u.role||'–'}</td>
+        <td style="display:flex;gap:5px;flex-wrap:wrap">
+          <button class="btn btn-secondary btn-sm" onclick="editPart('${u.id}')">Editar</button>
+          <button class="btn btn-danger btn-sm" onclick="delPart('${u.id}')">Excluir</button>
+        </td></tr>`).join('')
+    : '<tr class="empty-row"><td colspan="5">Nenhum participante cadastrado.</td></tr>';
+}
+
+function resetPartForm() {
+  ['mp-id','mp-name','mp-empresa','mp-cnpj','mp-cpf','mp-role','mp-pass'].forEach(id => document.getElementById(id).value='');
+  document.getElementById('mp-title').textContent = 'Novo Participante';
+}
+
+async function saveParticipant() {
+  const id      = document.getElementById('mp-id').value;
+  const name    = document.getElementById('mp-name').value.trim();
+  const empresa = document.getElementById('mp-empresa').value.trim();
+  const cnpj    = document.getElementById('mp-cnpj').value.trim();
+  const cpf     = document.getElementById('mp-cpf').value.trim();
+  const role    = document.getElementById('mp-role').value.trim();
+  const pass    = document.getElementById('mp-pass').value;
+  if (!name || !cpf || !pass) { alert('Preencha nome, CPF e senha.'); return; }
+  showSaving();
+  if (id) {
+    await db.collection(COL.users).doc(id).update({ name, empresa, cnpj, cpf, role, pass });
+    const i = CACHE.users.findIndex(u => u.id === id);
+    CACHE.users[i] = { ...CACHE.users[i], name, empresa, cnpj, cpf, role, pass };
+  } else {
+    const exists = CACHE.users.find(u => u.cpf === cpf);
+    if (exists) { alert('CPF já cadastrado.'); return; }
+    const ref = await db.collection(COL.users).add({ name, empresa, cnpj, cpf, role, pass, type:'participant' });
+    CACHE.users.push({ id: ref.id, name, empresa, cnpj, cpf, role, pass, type:'participant' });
+  }
+  closeModal('modal-part'); renderPart(); renderDash();
+}
+
+function editPart(id) {
+  const u = CACHE.users.find(u => u.id === id);
+  document.getElementById('mp-id').value      = u.id;
+  document.getElementById('mp-name').value    = u.name;
+  document.getElementById('mp-empresa').value = u.empresa||'';
+  document.getElementById('mp-cnpj').value    = u.cnpj||'';
+  document.getElementById('mp-cpf').value     = u.cpf;
+  document.getElementById('mp-role').value    = u.role||'';
+  document.getElementById('mp-pass').value    = u.pass;
+  document.getElementById('mp-title').textContent = 'Editar Participante';
+  openModal('modal-part');
+}
+
+async function delPart(id) {
+  if (!confirm('Excluir participante e suas liberações?')) return;
+  showSaving();
+  await db.collection(COL.users).doc(id).delete();
+  const toDelete = CACHE.accesses.filter(a => a.participantId === id);
+  await Promise.all(toDelete.map(a => db.collection(COL.accesses).doc(a.id).delete()));
+  CACHE.users    = CACHE.users.filter(u => u.id !== id);
+  CACHE.accesses = CACHE.accesses.filter(a => a.participantId !== id);
+  renderPart(); renderLib(); renderDash();
+}
+
+// ─────────────────────────────────────────
+//  CURSOS
+// ─────────────────────────────────────────
+function renderCursos() {
+  document.getElementById('curso-tbody').innerHTML = CACHE.courses.length
+    ? CACHE.courses.map(c => {
+        const videos = c.videos || (c.yt ? [c.yt] : []);
+        const forms  = c.forms  || (c.form ? [c.form] : []);
+        return `<tr>
+        <td><strong>${c.name}</strong></td>
+        <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.desc||'–'}</td>
+        <td>${forms.length ? forms.map((f,i)=>`<a href="${f}" target="_blank" rel="noopener" style="color:var(--brand);display:block">Avaliação ${forms.length>1?i+1:''}</a>`).join('') : '–'}</td>
+        <td style="display:flex;gap:5px;flex-wrap:wrap">
+          <button class="btn btn-secondary btn-sm" onclick="editCurso('${c.id}')">Editar</button>
+          <button class="btn btn-danger btn-sm" onclick="delCurso('${c.id}')">Excluir</button>
+        </td></tr>`;
+      }).join('')
+    : '<tr class="empty-row"><td colspan="4">Nenhum curso cadastrado.</td></tr>';
+}
+
+// ── Dynamic video / form rows ──
+function addVideoField(value) {
+  const wrap = document.createElement('div');
+  wrap.className = 'dyn-row';
+  wrap.innerHTML = `
+    <input type="url" class="mc-video-input" placeholder="https://www.youtube.com/watch?v=..." value="${value ? value.replace(/"/g,'&quot;') : ''}">
+    <button type="button" class="btn-remove" onclick="this.parentElement.remove()">✕</button>`;
+  document.getElementById('mc-videos-list').appendChild(wrap);
+}
+
+function addFormField(value) {
+  const wrap = document.createElement('div');
+  wrap.className = 'dyn-row';
+  wrap.innerHTML = `
+    <input type="url" class="mc-form-input" placeholder="https://forms.gle/..." value="${value ? value.replace(/"/g,'&quot;') : ''}">
+    <button type="button" class="btn-remove" onclick="this.parentElement.remove()">✕</button>`;
+  document.getElementById('mc-forms-list').appendChild(wrap);
+}
+
+function resetCursoForm() {
+  ['mc-id','mc-name','mc-desc','mc-ementa',
+   'mc-rt-nome','mc-rt-cargo','mc-rt-registro',
+   'mc-in-nome','mc-in-cargo','mc-in-registro','mc-in-proficiencia']
+    .forEach(id => document.getElementById(id).value='');
+  document.getElementById('mc-videos-list').innerHTML = '';
+  document.getElementById('mc-forms-list').innerHTML = '';
+  addVideoField();
+  addFormField();
+  document.getElementById('mc-title').textContent = 'Novo Curso';
+}
+
+async function saveCurso() {
+  const id     = document.getElementById('mc-id').value;
+  const name   = document.getElementById('mc-name').value.trim();
+  const desc   = document.getElementById('mc-desc').value.trim();
+  const ementa = document.getElementById('mc-ementa').value.trim();
+  if (!name) { alert('Informe o título do curso.'); return; }
+
+  const videos = [...document.querySelectorAll('.mc-video-input')]
+    .map(i => i.value.trim()).filter(Boolean);
+  const forms = [...document.querySelectorAll('.mc-form-input')]
+    .map(i => i.value.trim()).filter(Boolean);
+
+  const responsavelTecnico = {
+    nome:     document.getElementById('mc-rt-nome').value.trim(),
+    cargo:    document.getElementById('mc-rt-cargo').value.trim(),
+    registro: document.getElementById('mc-rt-registro').value.trim(),
+  };
+  const instrutor = {
+    nome:         document.getElementById('mc-in-nome').value.trim(),
+    cargo:        document.getElementById('mc-in-cargo').value.trim(),
+    registro:     document.getElementById('mc-in-registro').value.trim(),
+    proficiencia: document.getElementById('mc-in-proficiencia').value.trim(),
+  };
+
+  showSaving();
+  const data = { name, desc, ementa, videos, forms, responsavelTecnico, instrutor };
+  if (id) {
+    await db.collection(COL.courses).doc(id).update(data);
+    const i = CACHE.courses.findIndex(c => c.id === id);
+    CACHE.courses[i] = { id, ...data };
+  } else {
+    const ref = await db.collection(COL.courses).add(data);
+    CACHE.courses.push({ id: ref.id, ...data });
+  }
+  closeModal('modal-curso'); renderCursos(); renderDash();
+}
+
+function editCurso(id) {
+  const c = CACHE.courses.find(c => c.id === id);
+  document.getElementById('mc-id').value     = c.id;
+  document.getElementById('mc-name').value   = c.name;
+  document.getElementById('mc-desc').value   = c.desc||'';
+  document.getElementById('mc-ementa').value = c.ementa||'';
+
+  // Videos
+  document.getElementById('mc-videos-list').innerHTML = '';
+  const videos = c.videos || (c.yt ? [c.yt] : []);
+  if (videos.length) videos.forEach(v => addVideoField(v));
+  else addVideoField();
+
+  // Forms
+  document.getElementById('mc-forms-list').innerHTML = '';
+  const forms = c.forms || (c.form ? [c.form] : []);
+  if (forms.length) forms.forEach(f => addFormField(f));
+  else addFormField();
+
+  // Responsável Técnico
+  const rt = c.responsavelTecnico || {};
+  document.getElementById('mc-rt-nome').value     = rt.nome||'';
+  document.getElementById('mc-rt-cargo').value    = rt.cargo||'';
+  document.getElementById('mc-rt-registro').value = rt.registro||'';
+
+  // Instrutor
+  const ins = c.instrutor || {};
+  document.getElementById('mc-in-nome').value         = ins.nome||'';
+  document.getElementById('mc-in-cargo').value        = ins.cargo||'';
+  document.getElementById('mc-in-registro').value     = ins.registro||'';
+  document.getElementById('mc-in-proficiencia').value = ins.proficiencia||'';
+
+  document.getElementById('mc-title').textContent = 'Editar Curso';
+  openModal('modal-curso');
+}
+
+async function delCurso(id) {
+  if (!confirm('Excluir curso e suas liberações?')) return;
+  showSaving();
+  await db.collection(COL.courses).doc(id).delete();
+  const toDelete = CACHE.accesses.filter(a => a.courseId === id);
+  await Promise.all(toDelete.map(a => db.collection(COL.accesses).doc(a.id).delete()));
+  CACHE.courses  = CACHE.courses.filter(c => c.id !== id);
+  CACHE.accesses = CACHE.accesses.filter(a => a.courseId !== id);
+  renderCursos(); renderLib(); renderDash();
+}
+
+// ─────────────────────────────────────────
+//  LIBERAÇÕES
+// ─────────────────────────────────────────
+let pillsSelected = [];
+
+function renderLib() {
+  const now = new Date(); now.setHours(0,0,0,0);
+  document.getElementById('lib-tbody').innerHTML = CACHE.accesses.length
+    ? CACHE.accesses.map(a => {
+        const p   = CACHE.users.find(u => u.id === a.participantId);
+        const c   = CACHE.courses.find(c => c.id === a.courseId);
+        const exp = a.deadline && new Date(a.deadline) < now;
+        return `<tr>
+          <td>${p?.name||'–'}</td><td>${c?.name||'–'}</td>
+          <td>${a.deadline||'Sem prazo'}</td>
+          <td><span class="badge ${exp?'badge-red':'badge-green'}">${exp?'Expirado':'Ativo'}</span></td>
+          <td><button class="btn btn-danger btn-sm" onclick="delAccess('${a.id}')">Remover</button></td></tr>`;
+      }).join('')
+    : '<tr class="empty-row"><td colspan="5">Nenhuma liberação cadastrada.</td></tr>';
+}
+
+// Returns a deduplicated list of RT / instrutor "profiles" from all registered courses
+function getRTOptions() {
+  const map = new Map();
+  CACHE.courses.forEach(c => {
+    const rt = c.responsavelTecnico;
+    if (rt && rt.nome) map.set(rt.nome+'|'+rt.registro, rt);
+  });
+  return [...map.values()];
+}
+function getInstrutorOptions() {
+  const map = new Map();
+  CACHE.courses.forEach(c => {
+    const ins = c.instrutor;
+    if (ins && ins.nome) map.set(ins.nome+'|'+ins.registro, ins);
+  });
+  return [...map.values()];
+}
+
+function openAccessModal() {
+  pillsSelected = [];
+  renderPills();
+  const pSel = document.getElementById('la-part');
+  const cSel = document.getElementById('la-curso');
+  pSel.innerHTML = '<option value="">Selecione…</option>' +
+    CACHE.users.filter(u=>u.type!=='manager').map(u=>`<option value="${u.id}">${u.name}</option>`).join('');
+  cSel.innerHTML = '<option value="">Selecione…</option>' +
+    CACHE.courses.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+  document.getElementById('la-deadline').value = '';
+  populateRTInstrutorSelects();
+  openModal('modal-lib');
+}
+
+// Populate RT/Instrutor dropdowns; pre-select the ones registered on the chosen course
+function populateRTInstrutorSelects() {
+  const courseId = document.getElementById('la-curso').value;
+  const course = CACHE.courses.find(c => c.id === courseId);
+
+  const rtOptions = getRTOptions();
+  const inOptions = getInstrutorOptions();
+
+  const rtSel = document.getElementById('la-rt');
+  const inSel = document.getElementById('la-instrutor');
+
+  rtSel.innerHTML = '<option value="">Selecione…</option>' +
+    rtOptions.map(rt => `<option value="${rt.nome}|${rt.registro}">${rt.nome} – ${rt.cargo||''} (${rt.registro||'sem registro'})</option>`).join('');
+  inSel.innerHTML = '<option value="">Selecione…</option>' +
+    inOptions.map(ins => `<option value="${ins.nome}|${ins.registro}">${ins.nome} – ${ins.cargo||''} (${ins.registro||'sem registro'})</option>`).join('');
+
+  if (course) {
+    if (course.responsavelTecnico?.nome) rtSel.value = `${course.responsavelTecnico.nome}|${course.responsavelTecnico.registro}`;
+    if (course.instrutor?.nome) inSel.value = `${course.instrutor.nome}|${course.instrutor.registro}`;
+  }
+}
+
+function onAccessCourseChange() {
+  populateRTInstrutorSelects();
+}
+
+function addPill() {
+  const sel = document.getElementById('la-part');
+  const id = sel.value, name = sel.options[sel.selectedIndex]?.text;
+  if (!id || pillsSelected.find(p=>p.id===id)) return;
+  pillsSelected.push({id,name});
+  renderPills();
+}
+function removePill(id) { pillsSelected = pillsSelected.filter(p=>p.id!==id); renderPills(); }
+function renderPills() {
+  document.getElementById('la-pills').innerHTML =
+    pillsSelected.map(p=>`<span class="pill">${p.name}<button onclick="removePill('${p.id}')">×</button></span>`).join('');
+}
+
+async function saveAccess() {
+  const courseId = document.getElementById('la-curso').value;
+  const deadline = document.getElementById('la-deadline').value;
+  if (!courseId) { alert('Selecione um curso.'); return; }
+
+  // Resolve RT / instrutor selections back into full objects
+  const rtVal = document.getElementById('la-rt').value;
+  const inVal = document.getElementById('la-instrutor').value;
+  const rtChosen = getRTOptions().find(rt => `${rt.nome}|${rt.registro}` === rtVal) || null;
+  const inChosen = getInstrutorOptions().find(ins => `${ins.nome}|${ins.registro}` === inVal) || null;
+
+  const sel = document.getElementById('la-part');
+  if (!pillsSelected.length && sel.value) pillsSelected.push({id:sel.value,name:sel.options[sel.selectedIndex].text});
+  if (!pillsSelected.length) { alert('Selecione ao menos um participante.'); return; }
+  showSaving();
+  const batch = db.batch();
+  const added = [];
+  for (const p of pillsSelected) {
+    if (CACHE.accesses.find(a=>a.participantId===p.id&&a.courseId===courseId)) continue;
+    const ref = db.collection(COL.accesses).doc();
+    const data = { participantId:p.id, courseId, deadline, responsavelTecnico: rtChosen, instrutor: inChosen };
+    batch.set(ref, data);
+    added.push({ id:ref.id, ...data });
+  }
+  await batch.commit();
+  CACHE.accesses.push(...added);
+  pillsSelected = [];
+  closeModal('modal-lib'); renderLib(); renderDash();
+}
+
+async function delAccess(id) {
+  if (!confirm('Remover liberação?')) return;
+  showSaving();
+  await db.collection(COL.accesses).doc(id).delete();
+  CACHE.accesses = CACHE.accesses.filter(a=>a.id!==id);
+  renderLib(); renderDash();
+}
+
+// ─────────────────────────────────────────
+//  PARTICIPANT COURSES
+// ─────────────────────────────────────────
+function renderPartCourses() {
+  const now = new Date(); now.setHours(0,0,0,0);
+  const myAccesses = CACHE.accesses.filter(a =>
+    a.participantId === currentUser.id &&
+    (!a.deadline || new Date(a.deadline) >= now)
+  );
+  const container = document.getElementById('part-courses');
+  if (!myAccesses.length) {
+    container.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:48px 20px;color:var(--muted)">
+      <div style="font-size:3rem;margin-bottom:12px">📋</div>
+      <p>Nenhum treinamento liberado para você no momento.<br>Aguarde a liberação do gestor.</p></div>`;
+    return;
+  }
+  container.innerHTML = myAccesses.map(a => {
+    const c = CACHE.courses.find(c=>c.id===a.courseId);
+    if (!c) return '';
+    const days = a.deadline ? Math.ceil((new Date(a.deadline) - now) / 86400000) : null;
+    return `<div class="course-card" onclick="openPlayer('${c.id}')">
+      <div class="course-icon">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="var(--brand)">
+          <path d="M8 5v14l11-7z"/>
+        </svg>
+      </div>
+      <h3>${c.name}</h3>
+      <p>${c.desc||''}</p>
+      ${days!==null?`<div class="course-deadline">⏱ ${days} dia(s) restante(s)</div>`:''}
+    </div>`;
+  }).join('');
+}
+
+// ─────────────────────────────────────────
+//  VIDEO PLAYER
+// ─────────────────────────────────────────
+let currentPlayerCourse = null;
+let currentAccessForPlayer = null;
+
+function openPlayer(courseId) {
+  const c = CACHE.courses.find(c=>c.id===courseId);
+  if (!c) return;
+  currentPlayerCourse = c;
+  currentAccessForPlayer = CACHE.accesses.find(a => a.participantId===currentUser.id && a.courseId===courseId);
+
+  document.getElementById('screen-courses').style.display = 'none';
+  document.getElementById('screen-player').style.display  = 'block';
+  document.getElementById('player-heading').textContent   = c.name;
+  document.getElementById('player-title').textContent     = c.name;
+  document.getElementById('player-ementa').textContent    = c.ementa||c.desc||'';
+
+  // Videos
+  const videos = c.videos || (c.yt ? [c.yt] : []);
+  const tabsEl = document.getElementById('video-tabs');
+  if (videos.length > 1) {
+    tabsEl.style.display = 'flex';
+    tabsEl.innerHTML = videos.map((v,i) =>
+      `<button class="video-tab ${i===0?'active':''}" onclick="selectVideo(${i})">Aula ${i+1}</button>`).join('');
+  } else {
+    tabsEl.style.display = 'none';
+    tabsEl.innerHTML = '';
+  }
+  selectVideo(0);
+
+  // Evaluation forms
+  const forms = c.forms || (c.form ? [c.form] : []);
+  const evalContainer = document.getElementById('eval-links');
+  evalContainer.innerHTML = forms.length
+    ? forms.map((f,i) => `<a href="${f}" target="_blank" rel="noopener noreferrer" class="btn btn-accent">📋 Responder Avaliação${forms.length>1?' '+(i+1):''}</a>`).join('')
+    : '';
+
+  // Responsável Técnico / Instrutor — prefer the ones chosen at liberação, fallback to course data
+  const rt  = currentAccessForPlayer?.responsavelTecnico || c.responsavelTecnico;
+  const ins = currentAccessForPlayer?.instrutor || c.instrutor;
+
+  const rtBlock = document.getElementById('info-rt');
+  if (rt && rt.nome) {
+    rtBlock.style.display = 'block';
+    document.getElementById('rt-nome').textContent     = rt.nome;
+    document.getElementById('rt-cargo').textContent    = rt.cargo ? `Cargo: ${rt.cargo}` : '';
+    document.getElementById('rt-registro').textContent = rt.registro ? `Registro MTE/CREA: ${rt.registro}` : '';
+  } else {
+    rtBlock.style.display = 'none';
+  }
+
+  const inBlock = document.getElementById('info-instrutor');
+  if (ins && ins.nome) {
+    inBlock.style.display = 'block';
+    document.getElementById('in-nome').textContent         = ins.nome;
+    document.getElementById('in-cargo').textContent        = ins.cargo ? `Cargo: ${ins.cargo}` : '';
+    document.getElementById('in-registro').textContent     = ins.registro ? `Registro MTE/CREA: ${ins.registro}` : '';
+    document.getElementById('in-proficiencia').textContent = ins.proficiencia ? `Proficiência: ${ins.proficiencia}` : '';
+  } else {
+    inBlock.style.display = 'none';
+  }
+}
+
+function selectVideo(index) {
+  const videos = currentPlayerCourse.videos || (currentPlayerCourse.yt ? [currentPlayerCourse.yt] : []);
+  const url = videos[index];
+  const ytId = extractYTId(url);
+  const frame = document.getElementById('yt-frame');
+  frame.src = ytId
+    ? `https://www.youtube-nocookie.com/embed/${ytId}?rel=0&modestbranding=1`
+    : 'about:blank';
+  document.getElementById('video-wrapper').style.display = ytId ? 'block' : 'none';
+
+  document.querySelectorAll('.video-tab').forEach((tab,i) => tab.classList.toggle('active', i===index));
+}
+
+function closePlayer() {
+  document.getElementById('screen-courses').style.display = 'block';
+  document.getElementById('screen-player').style.display  = 'none';
+  document.getElementById('yt-frame').src = 'about:blank';
+}
+
+function extractYTId(url) {
+  if (!url) return null;
+  const ps = [/youtu\.be\/([^?&\s]+)/,/[?&]v=([^&\s]+)/,/embed\/([^?&\s]+)/,/shorts\/([^?&\s]+)/];
+  for (const p of ps) { const m=url.match(p); if(m) return m[1]; }
+  return null;
+}
+
+document.addEventListener('contextmenu', e => {
+  if (e.target.closest('#video-wrapper')) e.preventDefault();
+});
+
+// ─────────────────────────────────────────
+//  CPF MASK
+// ─────────────────────────────────────────
+function maskCPF(el) {
+  el.addEventListener('input', function() {
+    let v = this.value.replace(/\D/g,'');
+    if (v.length>3)  v = v.slice(0,3)+'.'+v.slice(3);
+    if (v.length>7)  v = v.slice(0,7)+'.'+v.slice(7);
+    if (v.length>11) v = v.slice(0,11)+'-'+v.slice(11);
+    this.value = v.slice(0,14);
+  });
+}
+function maskCNPJ(el) {
+  el.addEventListener('input', function() {
+    let v = this.value.replace(/\D/g,'');
+    if (v.length>2)  v = v.slice(0,2)+'.'+v.slice(2);
+    if (v.length>6)  v = v.slice(0,6)+'.'+v.slice(6);
+    if (v.length>10) v = v.slice(0,10)+'/'+v.slice(10);
+    if (v.length>15) v = v.slice(0,15)+'-'+v.slice(15);
+    this.value = v.slice(0,18);
+  });
+}
+maskCPF(document.getElementById('login-cpf'));
+maskCPF(document.getElementById('mp-cpf'));
+maskCNPJ(document.getElementById('mp-cnpj'));
+</script>
+</body>
+</html>
